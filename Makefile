@@ -4,7 +4,8 @@
 JAVAC=javac
 JAR=jar
 #FLAGS=
-FLAGS=-g -classpath bin
+#FLAGS=-g -classpath bin
+FLAGS=-g -parameters -encoding ISO-8859-1 -classpath bin
 TAGS=ctags
 BLDDIR=bin
 DOCDIR=doc
