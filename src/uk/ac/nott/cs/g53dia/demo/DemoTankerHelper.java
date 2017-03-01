@@ -40,7 +40,7 @@ public class DemoTankerHelper
 		return CellType.DefaultCell;
 	}
 
-	public static void debugHalt()
+	public static void halt()
 	{
 		while( true );
 	}
@@ -55,32 +55,87 @@ public class DemoTankerHelper
 		coord[1] = Integer.parseInt( point.substring(commaLoc + 2, closingBracketLoc) );
 	}
 
-	public static int calculateDistance( Cell c1, Cell c2 )
-	{
-		int[] coord1 = new int[2];
-		int[] coord2 = new int[2];
-
-		getCoord( c1.getPoint().toString(), coord1 );
-		getCoord( c2.getPoint().toString(), coord2 );
-
-		return Math.abs( coord1[0] - coord2[0] ) + Math.abs( coord1[1] - coord2[1] );
-	}
-
-	public static Well getNearestWell( ArrayList<Well> wellList, Cell playerPos )
+	public static Well getNearestWell( Cell[][] view )
 	{
 		int minDistance = Integer.MAX_VALUE;
 		Well nearestWell = null;
 
-		for( Well w : wellList )
-		{
-			int dis = calculateDistance( playerPos, w );
-			if( minDistance > dis )
-			{
-				minDistance = dis;
-				nearestWell = w;
-			}
-		}
+        int playerPos = view.length / 2;
+
+        for( byte row = 0; row < view.length; row++ )
+        {
+            for( byte col = 0; col < view.length; col++ )
+            {
+                Cell c = view[row][col];
+                if( getCellType(c) == CellType.Well )
+                {
+                    int distance = Math.max( Math.abs(row - playerPos), Math.abs(col - playerPos) );
+                    if( minDistance > distance )
+                    {
+                        minDistance = distance;
+                        nearestWell = (Well) c;
+                    }
+                }
+            }
+        }
 
 		return nearestWell;
 	}
+
+    public static Task getFirstActiveTask( ArrayList<Task> tasks )
+    {
+        for( Task t : tasks )
+        {
+            if( !t.isComplete() )
+            {
+                return t;
+            }
+        }
+
+        return null;
+    }
+
+    // Debugging Purposes
+    public static int getOppositeDirection( Cell playerPos, Cell direction )
+    {
+        boolean moveRight;
+        boolean moveUp;
+		int[] playerCoord = new int[2];
+        int[] coord = new int[2];
+
+        getCoord( playerPos.getPoint().toString(), playerCoord );
+        getCoord( direction.getPoint().toString(), coord );
+
+        moveRight = (playerCoord[0] < coord[0]) ? false : true;
+        moveUp = (playerCoord[1] < coord[1]) ? false : true;
+
+        if( !moveRight && !moveUp )
+        {
+            return MoveAction.SOUTHWEST;
+        } else if( moveRight && !moveUp )
+        {
+            return MoveAction.SOUTHEAST;
+        } else if( !moveRight && moveUp )
+        {
+            return MoveAction.NORTHWEST;
+        }
+
+        return MoveAction.NORTHEAST;
+    }
+
+    public static boolean isStationWithinView( Station s, Cell[][] view )
+    {
+        for( Cell[] rows : view )
+        {
+            for( Cell col : rows )
+            {
+                if( col instanceof Station && s.equals(col) )
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
 }

@@ -52,13 +52,16 @@ public class Environment {
         this.timestep   = 0l;
         this.stations 	= new ArrayList<Station>();
 
+
         // Generate initial environment
         for (int x = -size; x <= size; x++) {
             for (int y = -size; y <= size; y++) {
-                int size_y = 0;
                 cfactory.generateCell(this, new Point(x, y));
             }
         }
+
+
+
     }
 
     public Environment(int size) { this(size, new DefaultCellFactory()); }

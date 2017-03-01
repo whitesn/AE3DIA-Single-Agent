@@ -31,6 +31,9 @@ public class DemoTanker extends Tanker
 	ArrayList<Station> stationList;
 	ArrayList<Task> tasks;
 
+	int pos_x, pos_y;
+	Cell[][] previousCellData;
+
     public DemoTanker()
 	{
 		wellList = new ArrayList<Well>();
@@ -38,6 +41,8 @@ public class DemoTanker extends Tanker
 		tasks = new ArrayList<Task>();
 		act = null;
 		activeTask = null;
+		pos_x = 0;
+		pos_y = 0;
 		routines.add( this::fuel );
 		routines.add( this::task );
 		routines.add( this::recon );
@@ -80,11 +85,6 @@ public class DemoTanker extends Tanker
 					if( t != null && !tasks.contains(t) )
 					{
 						tasks.add( t );
-						System.out.println("========= Task ============");
-						System.out.println("Required: " + t.getRequired());
-						System.out.println("Deliver to: " + t.getStationPosition());
-						System.out.println("Water Demand: " + t.getWaterDemand());
-						System.out.println("Is Complete: " + t.isComplete());
 
 						if( activeTask == null )
 						{
@@ -149,17 +149,11 @@ public class DemoTanker extends Tanker
 
 		if( activeTask != null )
 		{
-			if( activeTask.isComplete() )
-			{
-				activeTask = null;
-				return a;
-			}
-
 			Point curLocation = getCurrentCell(currentCellData).getPoint();
 
 			if( getWaterLevel() != MAX_WATER )
 			{
-				Well nearestWell = DemoTankerHelper.getNearestWell( wellList, getCurrentCell(currentCellData) );
+				Well nearestWell = DemoTankerHelper.getNearestWell( currentCellData );
 
 				if( nearestWell != null )
 				{
@@ -168,6 +162,8 @@ public class DemoTanker extends Tanker
 					if( nearestWellPoint.equals(curLocation) )
 					{
 						a = new LoadWaterAction();
+						tasks.remove( activeTask );
+						activeTask = DemoTankerHelper.getFirstActiveTask( tasks );
 					}
 					else
 					{
@@ -193,6 +189,16 @@ public class DemoTanker extends Tanker
 		return a;
 	}
 
+	/*
+	 * Debugging purposes, do nothing
+	 */
+	private Action doNothing()
+	{
+		Cell c = getCurrentCell(currentCellData);
+		return new MoveTowardsAction( getCurrentCell(currentCellData).getPoint() );
+	}
+
+
     public Action senseAndAct(Cell[][] view, long timestep)
 	{
 		act = null;
@@ -200,12 +206,13 @@ public class DemoTanker extends Tanker
 		currentTimeStep = timestep;
 
 		scanSurroundings();
-		System.out.println( "Station Count: " + stationList.size() + " || Well Count : " + wellList.size() );
 
 		for( Function f : routines )
 		{
-			act = f.call();
-			if( act != null ) break;
+			if( (act = f.call()) != null )
+			{
+				break;
+			}
 		}
 
 		return act;
