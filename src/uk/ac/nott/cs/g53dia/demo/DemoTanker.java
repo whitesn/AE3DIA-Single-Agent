@@ -1,8 +1,10 @@
 package uk.ac.nott.cs.g53dia.demo;
 
-import uk.ac.nott.cs.g53dia.library.*;
-
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.function.Function;
+import uk.ac.nott.cs.g53dia.demo.DemoTankerHelper;
+import uk.ac.nott.cs.g53dia.library.*;
 
 /**
  * A simple example tanker that chooses actions.
@@ -16,27 +18,18 @@ import java.util.ArrayList;
  * See the file "license.terms" for information on usage and redistribution
  * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  */
-public class DemoTanker extends Tanker {
+public class DemoTanker extends Tanker
+{
+	final static int LOW_FUEL_THRESHOLD = (MAX_FUEL / 2) + 10;
+	final ArrayList<Function> routines = new ArrayList<Function>();
 
-	final int LOW_FUEL_THRESHOLD = (MAX_FUEL / 2) + 10;
 	Action act;
 	Cell[][] currentCellData;
 	long currentTimeStep;
 	Task activeTask;
-
 	ArrayList<Well> wellList;
 	ArrayList<Station> stationList;
 	ArrayList<Task> tasks;
-
-	boolean gotFirstStation = false;
-
-	public enum CellType {
-		EmptyCell,
-		FuelPump,
-		Well,
-		Station,
-		DefaultCell
-	}
 
     public DemoTanker()
 	{
@@ -45,88 +38,15 @@ public class DemoTanker extends Tanker {
 		tasks = new ArrayList<Task>();
 		act = null;
 		activeTask = null;
+		routines.add( this::fuel );
+		routines.add( this::task );
+		routines.add( this::recon );
 	}
 
-	/*
-	 * =========  This Section contain Helper Functions ============
-	 */
-	private boolean isCurrentCellFuelStation()
-	{
-		return (getCurrentCell(currentCellData) instanceof FuelPump);
+	@FunctionalInterface
+	interface Function {
+		Action call();
 	}
-
-	private boolean isFuelLow()
-	{
-		return getFuelLevel() < LOW_FUEL_THRESHOLD;
-	}
-
-	private CellType getCellType( Cell c )
-	{
-		if( c instanceof Well )
-		{
-			return CellType.Well;
-		}
-		else if( c instanceof EmptyCell )
-		{
-			return CellType.EmptyCell;
-		}
-		else if( c instanceof FuelPump )
-		{
-			return CellType.FuelPump;
-		}
-		else if( c instanceof Station )
-		{
-			return CellType.Station;
-		}
-
-		return CellType.DefaultCell;
-	}
-
-	private void debugHalt()
-	{
-		while( true );
-	}
-
-	private void getCoord( String point, int coord[] )
-	{
-		int openBracketLoc = point.indexOf("(");
-		int commaLoc = point.indexOf(",");
-		int closingBracketLoc = point.indexOf(")");
-
-		coord[0] = Integer.parseInt( point.substring(openBracketLoc + 1, commaLoc) );
-		coord[1] = Integer.parseInt( point.substring(commaLoc + 2, closingBracketLoc) );
-	}
-
-	private int calculateDistance( Cell c1, Cell c2 )
-	{
-		int[] coord1 = new int[2];
-		int[] coord2= new int[2];
-
-		getCoord( c1.getPoint().toString(), coord1 );
-		getCoord( c2.getPoint().toString(), coord2 );
-
-		return Math.abs( coord1[0] - coord2[0] ) + Math.abs( coord1[1] - coord2[1] );
-	}
-
-	private Well getNearestWell()
-	{
-		int minDistance = Integer.MAX_VALUE;
-		Well nearestWell = null;
-		Cell playerPos = getCurrentCell(currentCellData);
-
-		for( Well w : wellList )
-		{
-			int dis = calculateDistance( playerPos, w );
-			if( minDistance > dis )
-			{
-				minDistance = dis;
-				nearestWell = w;
-			}
-		}
-
-		return nearestWell;
-	}
-	// ======== Helper Functions Ends Here =========================
 
 	/*
 	 * Scanner v1.0
@@ -139,7 +59,7 @@ public class DemoTanker extends Tanker {
 		{
 			for( Cell col : rows )
 			{
-				switch( getCellType(col) )
+				switch( DemoTankerHelper.getCellType(col) )
 				{
 					case Well:
 					if( !wellList.contains((Well) col) )
@@ -184,18 +104,18 @@ public class DemoTanker extends Tanker {
 	}
 
 	/*
-	 * Fuel Action v1.0
+	 * Fuel v1.0
 	 *
 	 * If Fuel Level is reaching the bottom threshold, forget all tasks and go directly
 	 * to Fuel Station to refuel.
 	 */
-	private Action fuelRepleneshingAction()
+	private Action fuel()
 	{
 		Action a = null;
 
-		if( isFuelLow() )
+		if( DemoTankerHelper.isFuelLow(getFuelLevel()) )
 		{
-			if( isCurrentCellFuelStation() )
+			if( DemoTankerHelper.getCellType(getCurrentCell(currentCellData)) == DemoTankerHelper.CellType.FuelPump )
 			{
 				a = new RefuelAction();
 			}
@@ -219,11 +139,11 @@ public class DemoTanker extends Tanker {
 	}
 
 	/*
-	 * Complete Task v1.0
+	 * Task v1.0
 	 *
 	 * Find nearest well, refill water, send
 	 */
-	private Action completeTask()
+	private Action task()
 	{
 		Action a = null;
 
@@ -239,7 +159,7 @@ public class DemoTanker extends Tanker {
 
 			if( getWaterLevel() != MAX_WATER )
 			{
-				Well nearestWell = getNearestWell();
+				Well nearestWell = DemoTankerHelper.getNearestWell( wellList, getCurrentCell(currentCellData) );
 
 				if( nearestWell != null )
 				{
@@ -282,19 +202,10 @@ public class DemoTanker extends Tanker {
 		scanSurroundings();
 		System.out.println( "Station Count: " + stationList.size() + " || Well Count : " + wellList.size() );
 
-		if( (act = fuelRepleneshingAction()) != null )
+		for( Function f : routines )
 		{
-			return act;
-		}
-
-		if( (act = completeTask()) != null )
-		{
-			return act;
-		}
-
-		if( (act = recon()) != null )
-		{
-			return act;
+			act = f.call();
+			if( act != null ) break;
 		}
 
 		return act;
