@@ -1,7 +1,11 @@
 package uk.ac.nott.cs.g53dia.demo;
 
 import uk.ac.nott.cs.g53dia.library.*;
+import uk.ac.nott.cs.g53dia.demo.Position;
+
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
 
 public class DemoTankerHelper
 {
@@ -40,87 +44,168 @@ public class DemoTankerHelper
 		return CellType.DefaultCell;
 	}
 
-	public static void halt()
-	{
-		while( true );
-	}
+    private static int calculateDistance( Position p1, Position p2 )
+    {
+        return Math.max( Math.abs(p1.x - p2.x), Math.abs(p1.y - p2.y) );
+    }
 
-	public static void getCoord( String point, int coord[] )
-	{
-		int openBracketLoc = point.indexOf("(");
-		int commaLoc = point.indexOf(",");
-		int closingBracketLoc = point.indexOf(")");
-
-		coord[0] = Integer.parseInt( point.substring(openBracketLoc + 1, commaLoc) );
-		coord[1] = Integer.parseInt( point.substring(commaLoc + 2, closingBracketLoc) );
-	}
-
-	public static Well getNearestWell( Cell[][] view )
+	public static Well getNearestWell( Position playerPos, HashMap<Well,Position> wellList )
 	{
 		int minDistance = Integer.MAX_VALUE;
 		Well nearestWell = null;
 
-        int playerPos = view.length / 2;
-
-        for( byte row = 0; row < view.length; row++ )
+        for( Well w : wellList.keySet() )
         {
-            for( byte col = 0; col < view.length; col++ )
+            Position pos = wellList.get( w );
+            int distance = calculateDistance( playerPos, pos );
+            if( distance < minDistance )
             {
-                Cell c = view[row][col];
-                if( getCellType(c) == CellType.Well )
-                {
-                    int distance = Math.max( Math.abs(row - playerPos), Math.abs(col - playerPos) );
-                    if( minDistance > distance )
-                    {
-                        minDistance = distance;
-                        nearestWell = (Well) c;
-                    }
-                }
+                minDistance = distance;
+                nearestWell = w;
             }
         }
 
 		return nearestWell;
 	}
 
-    public static Task getFirstActiveTask( ArrayList<Task> tasks )
+    public static boolean isReachableWithinFuelThreshold( Position p1, Position p2 )
     {
-        for( Task t : tasks )
+        int distance = calculateDistance( p1, p2 );
+        return Tanker.MAX_FUEL - distance > DemoTanker.LOW_FUEL_THRESHOLD;
+    }
+
+    private static int getMoveDirection( int moveHorizontal, int moveVertical )
+    {
+        int moveDirection = -1;
+
+        if( moveVertical > 0 )
         {
-            if( !t.isComplete() )
+            if( moveHorizontal > 0 )
             {
-                return t;
+                moveDirection = MoveAction.NORTHEAST;
+            }
+            else if( moveHorizontal == 0 )
+            {
+                moveDirection = MoveAction.NORTH;
+            }
+            else if( moveHorizontal < 0 )
+            {
+                moveDirection = MoveAction.NORTHWEST;
+            }
+        }
+        else if( moveVertical == 0 )
+        {
+            if( moveHorizontal > 0 )
+            {
+                moveDirection = MoveAction.EAST;
+            }
+            if( moveHorizontal == 0 )
+            {
+            	moveDirection = -1;
+            }
+            else if( moveHorizontal < 0 )
+            {
+                moveDirection = MoveAction.WEST;
+            }
+        }
+        else if( moveVertical < 0 )
+        {
+            if( moveHorizontal > 0 )
+            {
+                moveDirection = MoveAction.SOUTHEAST;
+            }
+            else if( moveHorizontal == 0 )
+            {
+                moveDirection = MoveAction.SOUTH;
+            }
+            else if( moveHorizontal < 0 )
+            {
+                moveDirection = MoveAction.SOUTHWEST;
             }
         }
 
-        return null;
+        return moveDirection;
     }
 
-    // Debugging Purposes
-    public static int getOppositeDirection( Cell playerPos, Cell direction )
+    public static int getDirectionToward( Position playerPos, Position destination )
     {
-        boolean moveRight;
-        boolean moveUp;
-		int[] playerCoord = new int[2];
-        int[] coord = new int[2];
+        int moveHorizontal = destination.x - playerPos.x;
+        int moveVertical = destination.y - playerPos.y;
+        return getMoveDirection( moveHorizontal, moveVertical );
+    }
 
-        getCoord( playerPos.getPoint().toString(), playerCoord );
-        getCoord( direction.getPoint().toString(), coord );
+    public static void playerMoveUpdatePosition( Position playerPos, int direction )
+    {
+        switch( direction )
+        {
+            case MoveAction.NORTH:
+            playerPos.y++;
+            break;
 
-        moveRight = (playerCoord[0] < coord[0]) ? false : true;
-        moveUp = (playerCoord[1] < coord[1]) ? false : true;
+            case MoveAction.SOUTH:
+            playerPos.y--;
+            break;
 
-        if( !moveRight && !moveUp )
-        {
-            return MoveAction.SOUTHWEST;
-        } else if( moveRight && !moveUp )
-        {
-            return MoveAction.SOUTHEAST;
-        } else if( !moveRight && moveUp )
-        {
-            return MoveAction.NORTHWEST;
+            case MoveAction.WEST:
+            playerPos.x--;
+            break;
+
+            case MoveAction.EAST:
+            playerPos.x++;
+            break;
+
+            case MoveAction.NORTHEAST:
+            playerPos.y++;
+            playerPos.x++;
+            break;
+
+            case MoveAction.NORTHWEST:
+            playerPos.y++;
+            playerPos.x--;
+            break;
+
+            case MoveAction.SOUTHEAST:
+            playerPos.x++;
+            playerPos.y--;
+            break;
+
+            case MoveAction.SOUTHWEST:
+            playerPos.y--;
+            playerPos.x--;
+            break;
         }
+    }
 
-        return MoveAction.NORTHEAST;
+    public static Position getPositionFromView( int row, int col, Position playerPos )
+    {
+    	int x = col - Tanker.VIEW_RANGE;
+    	int y = Tanker.VIEW_RANGE - row;
+        return new Position( playerPos.x + x, playerPos.y + y );
+    }
+
+    public static boolean isStationStored( Position newStationPos, 
+    		HashMap<Position, Station> stationList )
+    {
+    	for( Position pos : stationList.keySet() )
+    	{
+    		if( pos.isEqualCoord(newStationPos) )
+    		{
+    			return true;
+    		}
+    	}
+    	
+    	return false;
+    }
+    
+    /*
+     * Debugging Purposes
+     */
+
+    public static int getOppositeDirection( Position playerPos, Position destination )
+    {
+        int moveHorizontal = playerPos.x - destination.x;
+        int moveVertical = playerPos.y - destination.y;
+        return getMoveDirection( moveHorizontal, moveVertical );
     }
 
     public static boolean isStationWithinView( Station s, Cell[][] view )
@@ -138,4 +223,50 @@ public class DemoTankerHelper
 
         return false;
     }
+
+    public static boolean checkIfPointEqualPosition( Point p1, Position p2 )
+    {
+        String pointPos = p1.toString();
+		String positionPos = p2.toString();
+        return pointPos.equals( positionPos );
+    }
+
+	public static void halt()
+	{
+		while( true );
+	}
+
+	public static void printView( Cell[][] cells )
+	{
+		for( int row = 0; row < cells.length; row++ )
+		{
+			for( int col = 0; col < cells[row].length; col++ )
+			{
+				Cell c = cells[col][row];
+
+				switch( getCellType(c) )
+				{
+				case EmptyCell:
+				System.out.print("  |");
+				break;
+
+				case FuelPump:
+				System.out.print("F |");
+				break;
+
+				case Well:
+				System.out.print("W |");
+				break;
+
+				case Station:
+				System.out.print("S |");
+				break;
+
+				default:
+				break;
+				}
+			}
+			System.out.println();
+		}
+	}
 }

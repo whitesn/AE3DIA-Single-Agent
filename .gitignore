@@ -1,0 +1,4 @@
+*.jar
+.classpath
+.classpath_atom
+Makefile_ori

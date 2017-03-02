@@ -1,8 +1,8 @@
 package uk.ac.nott.cs.g53dia.library;
 import java.util.*;
 /**
- * An infinite grid of cells representing the current state of
- * the environment at a given timestep.
+ * An infinite grid of cells representing the current state of 
+ * the environment at a given timestep. 
  * <p>
  * Each cell in the Environment implements the {@link Cell} interface.
  *
@@ -13,7 +13,7 @@ import java.util.*;
  * Copyright (c) 2003-2005 Neil Madden.
  * Copyright (c) 2011 Julian Zappala.
  *
- * See the file "license.terms" for information on usage and redistribution
+ * See the file "license.terms" for information on usage and redistribution 
  * of this file, and for a DISCLAIMER OF ALL WARRANTIES.
  */
 public class Environment {
@@ -33,12 +33,12 @@ public class Environment {
      * List of stations
      */
     public ArrayList<Station> stations;
-
-
-
-
-
-
+   
+    
+   
+    
+    
+    
     /**
      * Initialises the Tanker environment.
      *
@@ -51,14 +51,17 @@ public class Environment {
         this.cfactory   = factory;
         this.timestep   = 0l;
         this.stations 	= new ArrayList<Station>();
+        
 
         // Generate initial environment
         for (int x = -size; x <= size; x++) {
             for (int y = -size; y <= size; y++) {
-                int size_y = 0;
                 cfactory.generateCell(this, new Point(x, y));
             }
         }
+        
+   
+        
     }
 
     public Environment(int size) { this(size, new DefaultCellFactory()); }
@@ -80,35 +83,35 @@ public class Environment {
         }
         return res;
     }
-
+    
     private Cell getViewerSafeCell(Point pos) {
     	Cell c = getCell(pos);
     	if (c instanceof Station) {
     		c = ((Station)c).clone();
     	}
     	return c;
-
+    	
     }
-
+    
 
     /**
      * Get the cell at a specified location
-     *
+     * 
      * @param pos coordinates of the cell
      */
     public Cell getCell(Point pos) {
     	if (!map.containsKey(pos)) {
     		// No cell at this position, so make a new one
     		cfactory.generateCell(this, pos);
-
+    		
     	}
-
+       
     	return (Cell)map.get(pos);
     }
 
     /**
      * Get the current timestep.
-     *
+     * 
      * @return the current timestep
      */
     public long getTimestep() {
@@ -124,18 +127,18 @@ public class Environment {
 
     /**
      * Add a cell to the environment.
-     *
+     * 
      * @param c cell to be added
      */
     public synchronized void putCell(Cell c) {
         map.put(c.getPoint(), c);
-    }
-
+    }   
+    
     private void generateTasks() {
     	for (Station s: stations) {
     		s.generateTask();
     	}
     }
-
-
+    
+    
 }

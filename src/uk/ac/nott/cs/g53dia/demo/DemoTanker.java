@@ -1,9 +1,13 @@
 package uk.ac.nott.cs.g53dia.demo;
 
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.function.Function;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import uk.ac.nott.cs.g53dia.demo.DemoTankerHelper;
+import uk.ac.nott.cs.g53dia.demo.Position;
 import uk.ac.nott.cs.g53dia.library.*;
 
 /**
@@ -20,32 +24,24 @@ import uk.ac.nott.cs.g53dia.library.*;
  */
 public class DemoTanker extends Tanker
 {
-	final static int LOW_FUEL_THRESHOLD = (MAX_FUEL / 2) + 10;
-	final ArrayList<Function> routines = new ArrayList<Function>();
+	public final static int LOW_FUEL_THRESHOLD = (MAX_FUEL / 2) + 10;
 
-	Action act;
 	Cell[][] currentCellData;
 	long currentTimeStep;
 	Task activeTask;
-	ArrayList<Well> wellList;
-	ArrayList<Station> stationList;
-	ArrayList<Task> tasks;
-
-	int pos_x, pos_y;
-	Cell[][] previousCellData;
+	Position activeTaskPosition;
+	HashMap<Well, Position> wellList;
+	HashMap<Position, Station> stationList;
+	HashMap<Task, Position> tasks;
+	Position playerPos;
 
     public DemoTanker()
 	{
-		wellList = new ArrayList<Well>();
-		stationList = new ArrayList<Station>();
-		tasks = new ArrayList<Task>();
-		act = null;
+		wellList = new HashMap<Well,Position>();
+		stationList = new HashMap<Position,Station>();
+		tasks = new HashMap<Task,Position>();
 		activeTask = null;
-		pos_x = 0;
-		pos_y = 0;
-		routines.add( this::fuel );
-		routines.add( this::task );
-		routines.add( this::recon );
+		playerPos = new Position( 0, 0 );
 	}
 
 	@FunctionalInterface
@@ -60,36 +56,45 @@ public class DemoTanker extends Tanker
 	 */
 	private void scanSurroundings()
 	{
-		for( Cell[] rows : currentCellData )
+		Cell[][] rows = currentCellData;
+
+		for( int row = 0; row < rows.length; row++ )
 		{
-			for( Cell col : rows )
+			for( int col = 0; col < rows[row].length; col++ )
 			{
-				switch( DemoTankerHelper.getCellType(col) )
+				Cell cell = rows[col][row];
+
+				Position pos = DemoTankerHelper.getPositionFromView( row, col, playerPos );
+				if( !DemoTankerHelper.checkIfPointEqualPosition(cell.getPoint(), pos) )
+				{
+					System.err.println("ERR: Position Verification mismatch!");
+					System.err.println("CELL: " + cell.getPoint().toString() );
+					System.err.println("DETECTED: " + pos.toString() );
+					DemoTankerHelper.halt();
+				}
+
+				switch( DemoTankerHelper.getCellType(cell) )
 				{
 					case Well:
-					if( !wellList.contains((Well) col) )
+					Well w = (Well) cell;
+					if( !wellList.containsKey(w) )
 					{
-						wellList.add( (Well) col );
+						wellList.put( w, pos );
 					}
 					break;
 
 					case Station:
-					Station s = (Station) col;
-					if( !stationList.contains(s) )
+					Station s = (Station) cell;
+					if( !DemoTankerHelper.isStationStored(pos, stationList) )
 					{
-						stationList.add( s );
+						stationList.put( pos, s );
 					}
 
 					Task t = s.getTask();
 
-					if( t != null && !tasks.contains(t) )
+					if( t != null && !t.isComplete() && !tasks.containsKey(t) )
 					{
-						tasks.add( t );
-
-						if( activeTask == null )
-						{
-							activeTask = t;
-						}
+						tasks.put( t, pos );
 					}
 					break;
 
@@ -113,7 +118,7 @@ public class DemoTanker extends Tanker
 	{
 		Action a = null;
 
-		if( DemoTankerHelper.isFuelLow(getFuelLevel()) )
+		if( DemoTankerHelper.isFuelLow( getFuelLevel()) )
 		{
 			if( DemoTankerHelper.getCellType(getCurrentCell(currentCellData)) == DemoTankerHelper.CellType.FuelPump )
 			{
@@ -121,7 +126,13 @@ public class DemoTanker extends Tanker
 			}
 			else
 			{
-				a = new MoveTowardsAction(FUEL_PUMP_LOCATION);
+				int direction = DemoTankerHelper.getDirectionToward( playerPos, new Position(0,0) );
+
+				if( direction >= 0 )
+				{
+					DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
+					a = new MoveAction( direction );
+				}
 			}
 		}
 
@@ -135,7 +146,9 @@ public class DemoTanker extends Tanker
 	 */
 	private Action recon()
 	{
-		return new MoveAction( (int)(Math.random()*8) );
+		int direction = (int)(Math.random()*8);
+		DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
+		return new MoveAction( direction );
 	}
 
 	/*
@@ -149,39 +162,39 @@ public class DemoTanker extends Tanker
 
 		if( activeTask != null )
 		{
-			Point curLocation = getCurrentCell(currentCellData).getPoint();
-
 			if( getWaterLevel() != MAX_WATER )
 			{
-				Well nearestWell = DemoTankerHelper.getNearestWell( currentCellData );
+				Well nearestWell = DemoTankerHelper.getNearestWell( playerPos, wellList );
 
 				if( nearestWell != null )
 				{
-					Point nearestWellPoint = nearestWell.getPoint();
+					Position wellPoint = wellList.get( nearestWell );
 
-					if( nearestWellPoint.equals(curLocation) )
+					if( wellPoint.isEqualCoord(playerPos) )
 					{
 						a = new LoadWaterAction();
-						tasks.remove( activeTask );
-						activeTask = DemoTankerHelper.getFirstActiveTask( tasks );
 					}
 					else
 					{
-						a = new MoveTowardsAction( nearestWellPoint );
+						int direction = DemoTankerHelper.getDirectionToward( playerPos, wellPoint );
+						DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
+						a = new MoveAction( direction );
 					}
 				}
 			}
 			else
 			{
-				Point destination = activeTask.getStationPosition();
-
-				if( destination.equals(curLocation) )
+				if( activeTaskPosition.isEqualCoord(playerPos) )
 				{
-					a = new DeliverWaterAction(activeTask);
+					a = new DeliverWaterAction( activeTask );
+					tasks.remove( activeTask );
 				}
 				else
 				{
-					a = new MoveTowardsAction( destination );
+
+					int direction = DemoTankerHelper.getDirectionToward(playerPos, activeTaskPosition);
+					DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
+					a = new MoveAction( direction );
 				}
 			}
 		}
@@ -194,26 +207,62 @@ public class DemoTanker extends Tanker
 	 */
 	private Action doNothing()
 	{
-		Cell c = getCurrentCell(currentCellData);
 		return new MoveTowardsAction( getCurrentCell(currentCellData).getPoint() );
 	}
 
+	private void verifyPlayerPos()
+	{
+		Point storedPos = getCurrentCell(currentCellData).getPoint();
+
+		if( !DemoTankerHelper.checkIfPointEqualPosition(storedPos, playerPos) )
+		{
+			System.err.println("ERR: Player Position is not the same as the actual point!");
+			System.err.println("STORED: " + storedPos.toString() );
+			System.err.println("ACTUAL: " + playerPos.toString() );
+			DemoTankerHelper.halt();
+		}
+	}
+
+	public void updateActiveTask()
+	{
+		if( activeTask == null || activeTask.isComplete() )
+		{
+			Iterator<Entry<Task, Position>> iter = tasks.entrySet().iterator();
+
+			while( iter.hasNext() )
+			{
+				Map.Entry<Task,Position> entry = iter.next();
+				Task task = entry.getKey();
+
+	    		if( !task.isComplete() && DemoTankerHelper.isReachableWithinFuelThreshold( new Position(0,0), tasks.get(task)) )
+	    		{
+	    			activeTask = task;
+	    			activeTaskPosition = tasks.get(task);
+	    			return;
+	    		}
+	    		else
+	    		{
+	    			iter.remove();
+	    		}
+			}
+
+			activeTask = null;
+		}
+	}
 
     public Action senseAndAct(Cell[][] view, long timestep)
 	{
-		act = null;
+		Action act = null;
 		currentCellData = view;
 		currentTimeStep = timestep;
 
+		verifyPlayerPos();
 		scanSurroundings();
+		updateActiveTask();
 
-		for( Function f : routines )
-		{
-			if( (act = f.call()) != null )
-			{
-				break;
-			}
-		}
+		act = ( act == null ) ? fuel() : act;
+		act = ( act == null ) ? task() : act;
+		act = ( act == null ) ? recon() : act;
 
 		return act;
     }
