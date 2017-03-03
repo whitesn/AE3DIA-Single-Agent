@@ -3,9 +3,7 @@ package uk.ac.nott.cs.g53dia.demo;
 import uk.ac.nott.cs.g53dia.library.*;
 import uk.ac.nott.cs.g53dia.demo.Position;
 
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 
 public class DemoTankerHelper
 {
@@ -201,6 +199,7 @@ public class DemoTankerHelper
      * Debugging Purposes
      */
 
+    
     public static int getOppositeDirection( Position playerPos, Position destination )
     {
         int moveHorizontal = playerPos.x - destination.x;

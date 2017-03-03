@@ -1,6 +1,5 @@
 package uk.ac.nott.cs.g53dia.demo;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -44,11 +43,6 @@ public class DemoTanker extends Tanker
 		playerPos = new Position( 0, 0 );
 	}
 
-	@FunctionalInterface
-	interface Function {
-		Action call();
-	}
-
 	/*
 	 * Scanner v1.0
 	 *
@@ -63,15 +57,7 @@ public class DemoTanker extends Tanker
 			for( int col = 0; col < rows[row].length; col++ )
 			{
 				Cell cell = rows[col][row];
-
 				Position pos = DemoTankerHelper.getPositionFromView( row, col, playerPos );
-				if( !DemoTankerHelper.checkIfPointEqualPosition(cell.getPoint(), pos) )
-				{
-					System.err.println("ERR: Position Verification mismatch!");
-					System.err.println("CELL: " + cell.getPoint().toString() );
-					System.err.println("DETECTED: " + pos.toString() );
-					DemoTankerHelper.halt();
-				}
 
 				switch( DemoTankerHelper.getCellType(cell) )
 				{
@@ -126,13 +112,7 @@ public class DemoTanker extends Tanker
 			}
 			else
 			{
-				int direction = DemoTankerHelper.getDirectionToward( playerPos, new Position(0,0) );
-
-				if( direction >= 0 )
-				{
-					DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
-					a = new MoveAction( direction );
-				}
+				return getMoveActionToPos( new Position(0,0) );
 			}
 		}
 
@@ -176,9 +156,7 @@ public class DemoTanker extends Tanker
 					}
 					else
 					{
-						int direction = DemoTankerHelper.getDirectionToward( playerPos, wellPoint );
-						DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
-						a = new MoveAction( direction );
+						a = getMoveActionToPos( wellPoint );
 					}
 				}
 			}
@@ -192,22 +170,12 @@ public class DemoTanker extends Tanker
 				else
 				{
 
-					int direction = DemoTankerHelper.getDirectionToward(playerPos, activeTaskPosition);
-					DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
-					a = new MoveAction( direction );
+					a = getMoveActionToPos( activeTaskPosition );
 				}
 			}
 		}
 
 		return a;
-	}
-
-	/*
-	 * Debugging purposes, do nothing
-	 */
-	private Action doNothing()
-	{
-		return new MoveTowardsAction( getCurrentCell(currentCellData).getPoint() );
 	}
 
 	private void verifyPlayerPos()
@@ -266,4 +234,24 @@ public class DemoTanker extends Tanker
 
 		return act;
     }
+    
+    private Action getMoveActionToPos( Position target )
+    {
+		int direction = DemoTankerHelper.getDirectionToward( playerPos, target );
+
+		if( direction >= 0 )
+		{
+			DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
+			return new MoveAction( direction );
+		}
+		else
+		{
+			return doNothing();
+		}
+    }
+
+	private Action doNothing()
+	{
+		return new MoveTowardsAction( getCurrentCell(currentCellData).getPoint() );
+	}
 }
