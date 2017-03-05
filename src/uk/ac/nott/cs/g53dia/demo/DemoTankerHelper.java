@@ -3,6 +3,8 @@ package uk.ac.nott.cs.g53dia.demo;
 import uk.ac.nott.cs.g53dia.library.*;
 import uk.ac.nott.cs.g53dia.demo.Position;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 
 public class DemoTankerHelper
@@ -17,11 +19,6 @@ public class DemoTankerHelper
         Station,
         DefaultCell
     }
-
-	public static boolean isFuelLow( int fuelLevel )
-	{
-		return fuelLevel < DemoTanker.LOW_FUEL_THRESHOLD;
-	}
 
 	public static CellType getCellType( Cell c )
 	{
@@ -45,7 +42,7 @@ public class DemoTankerHelper
 		return CellType.DefaultCell;
 	}
 
-    private static int calculateDistance( Position p1, Position p2 )
+    public static int calculateDistance( Position p1, Position p2 )
     {
         return Math.max( Math.abs(p1.x - p2.x), Math.abs(p1.y - p2.y) );
     }
@@ -68,13 +65,7 @@ public class DemoTankerHelper
 
 		return nearestWell;
 	}
-
-    public static boolean isReachableWithinFuelThreshold( Position p1, Position p2 )
-    {
-        int distance = calculateDistance( p1, p2 );
-        return Tanker.MAX_FUEL - distance > DemoTanker.LOW_FUEL_THRESHOLD;
-    }
-
+    
     private static int getMoveDirection( int moveHorizontal, int moveVertical )
     {
         int moveDirection = -1;
@@ -283,6 +274,43 @@ public class DemoTankerHelper
     	return true;
     }
     
+	public static boolean noWaterDeliveryPlan( ArrayList<Plan> plans )
+	{
+		for( Plan p : plans )
+		{
+			if( p.getPlanType() == Plan.PlanType.DeliverWater )
+			{
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	
+	public static void insertDeliveryPlan( ArrayList<Plan> deliveryPlanSet, ArrayList<Plan> plans )
+	{
+		if( plans.isEmpty() )
+		{
+			plans.addAll( deliveryPlanSet );
+		}
+		else
+		{
+			for( int i = 0; i < plans.size(); i++ )
+			{
+				Plan plan = plans.get(i);
+				if( !(plan.getPlanType() == Plan.PlanType.Refuel) )
+				{
+					plans.addAll(i, deliveryPlanSet);
+					break;
+				} 
+				else if( i == plans.size() - 1 )
+				{
+					plans.addAll( deliveryPlanSet );
+				}
+			}
+		}
+	}
+    
     /*
      * Debugging Purposes
      */
@@ -320,7 +348,15 @@ public class DemoTankerHelper
 	public static void halt()
 	{
 		while( true );
+		/*
+		try {
+			System.in.read();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		*/
 	}
+	
 	
 	private static Position getActualPositionFromRowCol( int row, int col )
 	{
@@ -388,5 +424,15 @@ public class DemoTankerHelper
 			}
 			System.out.println();
 		}
+	}
+	
+	public static void printPlans( ArrayList<Plan> plans )
+	{
+		System.out.print("Plans: ");
+		for( Plan plan : plans )
+		{
+			System.out.print( plan.toString() + " || " );
+		}
+		System.out.println();
 	}
 }

@@ -3,7 +3,6 @@ package uk.ac.nott.cs.g53dia.demo;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Map.Entry;
 
 import uk.ac.nott.cs.g53dia.demo.DemoTankerHelper;
@@ -24,30 +23,27 @@ import uk.ac.nott.cs.g53dia.library.*;
  */
 public class DemoTanker extends Tanker
 {
-	public final static int LOW_FUEL_THRESHOLD = (MAX_FUEL / 2) + 10;
 	public final static int MAP_TRAVELLABLE_BOUND = ((Tanker.MAX_FUEL - 1) / 2);
 	public final static int MAP_BOUND = MAP_TRAVELLABLE_BOUND * 2 + 1;
-	
-	public boolean isWholeMapDiscovered = false;
+	public final static Position FUEL_STATION_POS = new Position(0,0);
 	
 	Cell[][] currentCellData;
 	boolean[][] cellDiscovered = new boolean[MAP_BOUND][MAP_BOUND];
 	long currentTimeStep;
-	Task activeTask;
 	Position activeTaskPosition;
 	HashMap<Well, Position> wellList;
 	HashMap<Position, Station> stationList;
 	HashMap<Task, Position> tasks;
-	ArrayList<Action> actionQueue;
+	ArrayList<Plan> plans;
 	Position playerPos;
+	boolean isWholeMapDiscovered = false;
 
     public DemoTanker()
 	{
 		wellList = new HashMap<Well,Position>();
 		stationList = new HashMap<Position,Station>();
 		tasks = new HashMap<Task,Position>();
-		actionQueue = new ArrayList<Action>();
-		activeTask = null;
+		plans = new ArrayList<Plan>();
 		playerPos = new Position( 0, 0 );
 		
 		for( int i = 0; i < MAP_TRAVELLABLE_BOUND; i++ )
@@ -123,23 +119,19 @@ public class DemoTanker extends Tanker
 	 * If Fuel Level is reaching the bottom threshold, forget all tasks and go directly
 	 * to Fuel Station to refuel.
 	 */
-	private Action fuel()
+	private void fuel()
 	{
-		Action a = null;
-
-		if( DemoTankerHelper.isFuelLow( getFuelLevel()) )
+		if( plans.isEmpty() || plans.get(0).getPlanType() != Plan.PlanType.Refuel )
 		{
-			if( DemoTankerHelper.getCellType(getCurrentCell(currentCellData)) == DemoTankerHelper.CellType.FuelPump )
+			int distance = DemoTankerHelper.calculateDistance( playerPos, FUEL_STATION_POS );
+			
+			if( getFuelLevel() - distance <= 1 )
 			{
-				a = new RefuelAction();
-			}
-			else
-			{
-				return getMoveActionToPos( new Position(0,0) );
+				System.out.println(">>>>>>>>> ADD FUEL PLAN");
+				Plan plan = new Plan( Plan.PlanType.Refuel, FUEL_STATION_POS, null );
+				plans.add( 0, plan );
 			}
 		}
-
-		return a;
 	}
 
 	/*
@@ -147,78 +139,155 @@ public class DemoTanker extends Tanker
 	 *
 	 * When no activities are to be done, do recon randomly.
 	 */
-	private Action recon()
+	private void recon()
 	{
-		Action a = null;
-		int direction;
-		
-		if( !isWholeMapDiscovered )
+		if( plans.isEmpty() )
 		{
-			direction = DemoTankerHelper.getDirectionMostAreaDiscovered(cellDiscovered, playerPos);
-			if( direction == -1 )
+			int direction;
+			if( !isWholeMapDiscovered )
 			{
-				System.out.println("Failed to find undiscovered part of map direction");
-				DemoTankerHelper.printCellDiscovered(cellDiscovered, playerPos);
-				DemoTankerHelper.halt();
-			}
-			a = new MoveAction( direction );
-		}
-		else
-		{
-			direction = (int) (Math.random() * 8);
-			a = new MoveAction( direction );
-		}
-		
-		DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
-		
-		return a;
-	}
-
-	/*
-	 * Task v1.0
-	 *
-	 * Find nearest well, refill water, send
-	 */
-	private Action task()
-	{
-		Action a = null;
-
-		if( activeTask != null )
-		{
-			if( getWaterLevel() != MAX_WATER )
-			{
-				Well nearestWell = DemoTankerHelper.getNearestWell( playerPos, wellList );
-				
-				if( nearestWell != null )
+				direction = DemoTankerHelper.getDirectionMostAreaDiscovered(cellDiscovered, playerPos);
+				if( direction == -1 )
 				{
-					Position wellPoint = wellList.get( nearestWell );
-
-					if( wellPoint.isEqualCoord(playerPos) )
-					{
-						a = new LoadWaterAction();
-					}
-					else
-					{
-						a = getMoveActionToPos( wellPoint );
-					}
+					System.err.println("ERROR: Failed to find undiscovered part of map's direction");
+					DemoTankerHelper.printCellDiscovered(cellDiscovered, playerPos);
+					DemoTankerHelper.halt();
 				}
 			}
 			else
 			{
-				if( activeTaskPosition.isEqualCoord(playerPos) )
+				direction = (int) (Math.random() * 8);
+			}
+			
+			Position newPos = playerPos.clone();
+			DemoTankerHelper.playerMoveUpdatePosition(newPos, direction);
+			Plan plan = new Plan( Plan.PlanType.Recon, newPos, null );
+			plans.add( plan );
+		}
+	}
+
+	private void task()
+	{
+		if( DemoTankerHelper.noWaterDeliveryPlan(plans) )
+		{
+			ArrayList<Plan> deliveryPlanSet = new ArrayList<Plan>();
+
+			Iterator<Entry<Task, Position>> iter = tasks.entrySet().iterator();
+			
+			while( iter.hasNext() )
+			{
+				Entry<Task, ?> pair = ((Entry<Task, Position>) iter.next());
+				Task task = (Task) pair.getKey();
+				Position taskPos = tasks.get(task);
+				Well nearestWell = DemoTankerHelper.getNearestWell(playerPos, wellList);
+				Position wellPos = wellList.get( nearestWell );
+				
+				/*
+				 *  Several Scenarios:
+				 *  - DeliverWater
+				 *  - LoadWater, DeliverWater
+				 *  - Refuel, LoadWater, DeliverWater
+				 *  - Refuel, LoadWater, Refuel, DeliverWater (should this even be done?)
+				 */
+
+				if( !task.isComplete() )
 				{
-					a = new DeliverWaterAction( activeTask );
-					tasks.remove( activeTask );
+					if( getWaterLevel() >= task.getWaterDemand() )
+					{
+						// DeliverWater
+						int playerToStation = DemoTankerHelper.calculateDistance( playerPos, taskPos );
+						int stationToFuelS = DemoTankerHelper.calculateDistance( taskPos, FUEL_STATION_POS );
+						
+						if( getFuelLevel() - (playerToStation + stationToFuelS) >= 1 )
+						{
+							deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater, taskPos, task) );
+							break;
+						}
+					}
+					else
+					{
+						int playerToWell = DemoTankerHelper.calculateDistance( playerPos, wellPos );
+						int FuelSToWell = DemoTankerHelper.calculateDistance( FUEL_STATION_POS, wellPos );
+						int wellToStation = DemoTankerHelper.calculateDistance( wellPos, taskPos );
+						int stationToFuelS = DemoTankerHelper.calculateDistance( taskPos, FUEL_STATION_POS );
+						
+						if( getFuelLevel() - (playerToWell + wellToStation + stationToFuelS) >= 1 )
+						{
+							// LoadWater, DeliverWater
+							System.out.println("Player To Well: " + playerToWell);
+							System.out.println("Well To Station: " + wellToStation);
+							System.out.println("Station To Fuel: " + stationToFuelS);
+							
+							deliveryPlanSet.add( new Plan(Plan.PlanType.LoadWater,wellPos,null) );
+							deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater,taskPos,task) );
+							break;
+						}
+						else if( Tanker.MAX_FUEL - (FuelSToWell + wellToStation + stationToFuelS) >= 1 )
+						{
+							// Refuel, LoadWater, DeliverWater
+							System.out.println("Fuel To Well: " + FuelSToWell);
+							System.out.println("Well To Station: " + wellToStation);
+							System.out.println("Station To Fuel: " + stationToFuelS);
+
+							deliveryPlanSet.add( new Plan(Plan.PlanType.Refuel,DemoTanker.FUEL_STATION_POS,null) );
+							deliveryPlanSet.add( new Plan(Plan.PlanType.LoadWater,wellPos,null) );
+							deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater,taskPos,task) );
+							break;
+						}
+					}
 				}
 				else
 				{
-					a = getMoveActionToPos( activeTaskPosition );
+					iter.remove();
 				}
 			}
-		}
 
-		return a;
+			DemoTankerHelper.insertDeliveryPlan( deliveryPlanSet, plans );
+		}
 	}
+
+    public Action senseAndAct(Cell[][] view, long timestep)
+	{
+		currentCellData = view;
+		currentTimeStep = timestep;
+
+		verifyPlayerPos();
+		
+		scanSurroundings();
+		task();
+		fuel();
+		recon();
+
+		debug();
+		
+		Action act = null;
+		if( plans.size() > 0 )
+		{
+			Plan plan = plans.get(0);
+			act = plan.runPlan(playerPos);
+			if( plan.isTaskDone() )
+			{
+				plans.remove( plan );
+			}
+		}
+		else
+		{
+			// SHOULD NEVER REACHED HERE, MIGHT BE POTENTIAL LOOP
+			System.err.println("ERROR: EMPTY PLANS");
+			DemoTankerHelper.halt();
+		}
+		
+		System.out.println("Action: " + act.toString());
+
+		return act;
+    }
+
+    /*
+	private Action doNothing()
+	{
+		return new MoveTowardsAction( getCurrentCell(currentCellData).getPoint() );
+	}
+	*/
 
 	private void verifyPlayerPos()
 	{
@@ -229,71 +298,20 @@ public class DemoTanker extends Tanker
 			System.err.println("ERR: Player Position is not the same as the actual point!");
 			System.err.println("STORED: " + storedPos.toString() );
 			System.err.println("ACTUAL: " + playerPos.toString() );
-			DemoTankerHelper.halt();
 		}
 	}
-
-	public void updateActiveTask()
+	
+	public void debug()
 	{
-		if( activeTask == null || activeTask.isComplete() )
-		{
-			Iterator<Entry<Task, Position>> iter = tasks.entrySet().iterator();
-
-			while( iter.hasNext() )
-			{
-				Map.Entry<Task,Position> entry = iter.next();
-				Task task = entry.getKey();
-
-	    		if( !task.isComplete() && DemoTankerHelper.isReachableWithinFuelThreshold( new Position(0,0), tasks.get(task)) )
-	    		{
-	    			activeTask = task;
-	    			activeTaskPosition = tasks.get(task);
-	    			return;
-	    		}
-	    		else
-	    		{
-	    			iter.remove();
-	    		}
-			}
-
-			activeTask = null;
-		}
-	}
-
-    public Action senseAndAct(Cell[][] view, long timestep)
-	{
-		Action act = null;
-		currentCellData = view;
-		currentTimeStep = timestep;
-
-		verifyPlayerPos();
-		scanSurroundings();
-		updateActiveTask();
-		
-		act = ( act == null ) ? fuel() : act;
-		act = ( act == null ) ? task() : act;
-		act = ( act == null ) ? recon() : act;
-
-		return act;
-    }
-    
-    private Action getMoveActionToPos( Position target )
-    {
-		int direction = DemoTankerHelper.getDirectionToward( playerPos, target );
-
-		if( direction >= 0 )
-		{
-			DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
-			return new MoveAction( direction );
-		}
-		else
-		{
-			return doNothing();
-		}
-    }
-
-	private Action doNothing()
-	{
-		return new MoveTowardsAction( getCurrentCell(currentCellData).getPoint() );
+		System.out.println("===== TIMESTEP: " + currentTimeStep + " =====" );
+		System.out.println("Position: \t\t" + playerPos.toString());
+		System.out.println("Station Found: \t\t" + stationList.size());
+		System.out.println("Well Found: \t\t" + wellList.size());
+		System.out.println("Task Waiting: \t\t" + tasks.size());
+		System.out.println("Whole Map Discovered: \t" + isWholeMapDiscovered);
+		System.out.println("Fuel Level: \t\t" + getFuelLevel());
+		System.out.println("Plans in Queue: \t" + plans.size());
+		System.out.println("Distance to FS: \t" + DemoTankerHelper.calculateDistance(playerPos, FUEL_STATION_POS));
+		DemoTankerHelper.printPlans( plans );
 	}
 }

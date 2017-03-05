@@ -61,9 +61,6 @@ public class DemoSimulator {
 
 			//try { Thread.sleep(DELAY);} catch (Exception e) { }
         }
-
-		System.out.println("Station Found: " + ((DemoTanker) t).stationList.size());
-		System.out.println("Well Found: " + ((DemoTanker) t).wellList.size());
     }
 
 

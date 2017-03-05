@@ -2,6 +2,8 @@ package test;
 
 import static org.junit.Assert.*;
 
+import java.util.ArrayList;
+
 import org.junit.Test;
 
 import uk.ac.nott.cs.g53dia.demo.*;
@@ -9,16 +11,6 @@ import uk.ac.nott.cs.g53dia.library.*;
 
 public class TestDemoTankerHelper {
 	
-	@Test
-	public void testIsFuelLow() 
-	{
-		int fuel = DemoTanker.LOW_FUEL_THRESHOLD - 1;
-		assertTrue( DemoTankerHelper.isFuelLow(fuel) );
-		
-		int sufficientFuel = DemoTanker.LOW_FUEL_THRESHOLD + 1;
-		assertFalse( DemoTankerHelper.isFuelLow(sufficientFuel) );
-	}
-
 	@Test
 	public void testGetCellType()
 	{
@@ -140,5 +132,57 @@ public class TestDemoTankerHelper {
 		}
 	
 		assertEquals( MoveAction.SOUTHEAST, DemoTankerHelper.getDirectionMostAreaDiscovered(cellDiscovered, playerPos) );
+	}
+	
+	@Test
+	public void testIsWholeMapDiscovered()
+	{
+		boolean[][] cellDiscovered = new boolean[5][5];
+		for( int i = 0; i < 5; i++ )
+		{
+			for( int j = 0; j < 5; j++ )
+			{
+				cellDiscovered[i][j] = true;
+			}
+		}
+		
+		assertTrue( DemoTankerHelper.isWholeMapDiscovered(cellDiscovered) );
+		
+		cellDiscovered[0][0] = false;
+		assertFalse( DemoTankerHelper.isWholeMapDiscovered(cellDiscovered) );
+
+		cellDiscovered[0][0] = true;
+		cellDiscovered[4][4] = false;
+		assertFalse( DemoTankerHelper.isWholeMapDiscovered(cellDiscovered) );
+	}
+	
+	@Test
+	public void testNoWaterDeliveryPlan()
+	{
+		 ArrayList<Plan> plans = new ArrayList<Plan>();
+		 plans.add( new Plan(Plan.PlanType.Recon, new Position(0,0), null) );
+		 plans.add( new Plan(Plan.PlanType.LoadWater, new Position(0,0), null) );
+		 plans.add( new Plan(Plan.PlanType.Refuel, new Position(0,0), null) );
+		 
+		 assertTrue( DemoTankerHelper.noWaterDeliveryPlan(plans) );
+
+		 plans.add( new Plan(Plan.PlanType.DeliverWater, new Position(0,0), null) );
+		 assertFalse( DemoTankerHelper.noWaterDeliveryPlan(plans) );
+	}
+	
+	@Test
+	public void testInsertDeliveryPlan()
+	{
+		ArrayList<Plan> plans = new ArrayList<Plan>();
+		ArrayList<Plan> deliveryPlanSet = new ArrayList<Plan>();
+		
+		DemoTankerHelper.insertDeliveryPlan(deliveryPlanSet, plans);
+		assertTrue( plans.isEmpty() );
+		
+		deliveryPlanSet.add( new Plan(Plan.PlanType.Refuel, DemoTanker.FUEL_STATION_POS, null) );
+		deliveryPlanSet.add( new Plan(Plan.PlanType.LoadWater, new Position(0,0), null) );
+		deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater, new Position(0,0), null) );
+		DemoTankerHelper.insertDeliveryPlan(deliveryPlanSet, plans);
+		assertEquals( 3, plans.size() );
 	}
 }
