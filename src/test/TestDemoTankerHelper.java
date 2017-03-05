@@ -4,8 +4,6 @@ import static org.junit.Assert.*;
 
 import org.junit.Test;
 
-import uk.ac.nott.cs.g53dia.demo.DemoTanker;
-import uk.ac.nott.cs.g53dia.demo.DemoTankerHelper;
 import uk.ac.nott.cs.g53dia.demo.*;
 import uk.ac.nott.cs.g53dia.library.*;
 
@@ -71,5 +69,76 @@ public class TestDemoTankerHelper {
 			assertEquals( i, DemoTankerHelper.getDirectionToward(
 					pos, movingPos) );
 		}
+	}
+	
+	@Test
+	public void testGetPositionFromView()
+	{
+        Environment env = new Environment((Tanker.MAX_FUEL/2)-5);
+        Tanker t = new DemoTanker();
+        
+        Position playerPos = new Position(0,0);
+        Action a = new MoveAction( MoveAction.NORTH );
+        
+        for( int i = 0; i < 20; i++ )
+        {
+        	try {
+				a.execute(env, t);
+				DemoTankerHelper.playerMoveUpdatePosition( playerPos, MoveAction.NORTH );
+			} catch (ActionFailedException e) {
+				fail();
+			}
+        }
+
+		Position actualPos;
+		Cell[][] view = env.getView(t.getPosition(), Tanker.VIEW_RANGE);
+		
+		actualPos = DemoTankerHelper.getPositionFromView(0, 0, playerPos);
+		assertTrue( DemoTankerHelper.checkIfPointEqualPosition(view[0][0].getPoint(), actualPos) );
+		
+		actualPos = DemoTankerHelper.getPositionFromView(24, 24, playerPos);
+		assertTrue( DemoTankerHelper.checkIfPointEqualPosition(view[24][24].getPoint(), actualPos) );
+		
+		actualPos = DemoTankerHelper.getPositionFromView(1, 1, playerPos);
+		assertFalse( DemoTankerHelper.checkIfPointEqualPosition(view[0][0].getPoint(), actualPos) );
+	}
+	
+	@Test
+	public void testConvertToUnsignedPos()
+	{
+		Position p = new Position(0,0);
+		Position actual = new Position(49,49);
+		assertTrue( actual.isEqualCoord(DemoTankerHelper.convertToUnsignedPos(p)) );
+		
+		p.x -= 10;
+		actual.x -= 10;
+		assertTrue( actual.isEqualCoord(DemoTankerHelper.convertToUnsignedPos(p)) );
+	}
+	
+	@Test
+	public void testGetDirectionMostAreaDiscovered()
+	{
+		boolean[][] cellDiscovered = new boolean[DemoTanker.MAP_BOUND][DemoTanker.MAP_BOUND];
+		
+		for( int i = 0; i < DemoTanker.MAP_BOUND; i++ )
+		{
+			for( int j = 0; j < DemoTanker.MAP_BOUND; j++ )
+			{
+				cellDiscovered[i][j] = false;
+			}
+		}
+		
+		Position playerPos = new Position(0,0);
+		Position pos = DemoTankerHelper.convertToUnsignedPos( playerPos );
+		
+		for( int col = 0; col < pos.x; col++ )
+		{
+			for( int row = 0; row < pos.y; row++ )
+			{
+				cellDiscovered[col][row] = true;
+			}
+		}
+	
+		assertEquals( MoveAction.SOUTHEAST, DemoTankerHelper.getDirectionMostAreaDiscovered(cellDiscovered, playerPos) );
 	}
 }

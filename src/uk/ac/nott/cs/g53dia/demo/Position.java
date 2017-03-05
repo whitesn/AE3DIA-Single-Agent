@@ -20,4 +20,9 @@ public class Position
     {
     	return "(" + this.x + ", " + this.y + ")";
     }
+    
+    public Position clone()
+    {
+    	return new Position(x,y);
+    }
 }

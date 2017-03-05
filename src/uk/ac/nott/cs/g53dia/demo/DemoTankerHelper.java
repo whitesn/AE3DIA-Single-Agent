@@ -7,6 +7,9 @@ import java.util.HashMap;
 
 public class DemoTankerHelper
 {
+	// MAX_DISTANCE_TRAVELLED = MAX_FUEL - COST_ACTION_FUEL / 2 (Roundtrip Travel) - VIEW_RANGE
+	public static int RECON_TRAVEL_BOUND = DemoTanker.MAP_TRAVELLABLE_BOUND - Tanker.VIEW_RANGE;
+	
     public enum CellType {
         EmptyCell,
         FuelPump,
@@ -174,13 +177,30 @@ public class DemoTankerHelper
         }
     }
 
+    /*
+     * Map the Cell[][] view from (col,row)(0,0) to actual 
+     * Position (-12,12) (top left) relative to the playerPos
+     */
     public static Position getPositionFromView( int row, int col, Position playerPos )
     {
     	int x = col - Tanker.VIEW_RANGE;
     	int y = Tanker.VIEW_RANGE - row;
         return new Position( playerPos.x + x, playerPos.y + y );
     }
-
+    
+    public static Position convertToUnsignedPos( Position p )
+    {
+    	int x = (DemoTanker.MAP_BOUND / 2) + p.x;
+    	int y = (DemoTanker.MAP_BOUND / 2) - p.y;
+    	
+    	x = (x >= DemoTanker.MAP_BOUND) ? DemoTanker.MAP_BOUND - 1 : x;
+    	y = (y >= DemoTanker.MAP_BOUND) ? DemoTanker.MAP_BOUND - 1 : y;
+    	x = (x < 0) ? 0 : x;
+    	y = (y < 0) ? 0 : y;
+    	
+    	return new Position(x,y);
+    }
+    
     public static boolean isStationStored( Position newStationPos, 
     		HashMap<Position, Station> stationList )
     {
@@ -195,11 +215,78 @@ public class DemoTankerHelper
     	return false;
     }
     
+    private static int calculateGainForArea( boolean[][] cellDiscovered, Position pos )
+    {
+    	int gain = 0;
+
+		for( int row = pos.y-Tanker.VIEW_RANGE; row <= pos.y+Tanker.VIEW_RANGE; row++ )
+		{
+			for( int col = pos.x-Tanker.VIEW_RANGE; col <= pos.x+Tanker.VIEW_RANGE; col++ )
+			{
+				Position p = new Position(col,row);
+				p = convertToUnsignedPos( p );
+				gain += ( cellDiscovered[p.x][p.y] ) ? 0 : 1;
+			}
+		}
+		
+		return gain;
+    }
+    
+    public static int getDirectionMostAreaDiscovered( boolean[][] cellDiscovered, Position playerPos )
+    {
+    	int maxGain = 0;
+    	int maxGainDirection = -1;
+    	
+    	for( int direction = 0; direction < 8; direction++ )
+    	{
+    		Position newPos = playerPos.clone();
+    		playerMoveUpdatePosition( newPos, direction );
+    		int gain = calculateGainForArea( cellDiscovered, newPos );
+			if( gain > maxGain )
+			{
+				maxGain = gain;
+				maxGainDirection = direction;
+			}
+    	}
+    	
+    	if( maxGainDirection == -1 )
+    	{
+    		for( int row = -RECON_TRAVEL_BOUND; row <= RECON_TRAVEL_BOUND; row++ )
+    		{
+    			for( int col = -RECON_TRAVEL_BOUND; col <= RECON_TRAVEL_BOUND; col++ )
+    			{
+    				Position pos = new Position(col,row);
+    	    		int gain = calculateGainForArea( cellDiscovered, pos );
+    	    		if( gain > maxGain )
+    	    		{
+    	    			maxGain = gain;
+    	    			maxGainDirection = getDirectionToward( playerPos, pos );
+    	    		}
+    			}
+    		}
+    	}
+    	
+    	return maxGainDirection;
+    }
+
+    public static boolean isWholeMapDiscovered( boolean[][] cellDiscovered )
+    {
+    	for( int i = 0; i < cellDiscovered.length; i++ )
+    	{
+    		for( int j = 0; j < cellDiscovered.length; j++ )
+    		{
+    			if( !cellDiscovered[i][j] )
+    				return false;
+    		}
+    	}
+    	
+    	return true;
+    }
+    
     /*
      * Debugging Purposes
      */
-
-    
+ 
     public static int getOppositeDirection( Position playerPos, Position destination )
     {
         int moveHorizontal = playerPos.x - destination.x;
@@ -233,6 +320,40 @@ public class DemoTankerHelper
 	public static void halt()
 	{
 		while( true );
+	}
+	
+	private static Position getActualPositionFromRowCol( int row, int col )
+	{
+		int x = col - DemoTanker.MAP_BOUND / 2;
+		int y = DemoTanker.MAP_BOUND / 2 - row;
+		return new Position(x,y);
+	}
+	
+	public static void printCellDiscovered( boolean[][] cellDiscovered, Position playerPos )
+	{
+		for( int row = 0; row < cellDiscovered.length; row++ )
+		{
+			for( int col = 0; col < cellDiscovered.length; col++ )
+			{
+				Position curCell = getActualPositionFromRowCol( row, col );
+				if( curCell.isEqualCoord(playerPos) )
+				{
+					System.out.print("O ");
+				}
+				else
+				{
+					if( cellDiscovered[col][row] )
+					{
+						System.out.print("X ");
+					}
+					else
+					{
+						System.out.print(". ");
+					}
+				}
+			}
+			System.out.println();
+		}
 	}
 
 	public static void printView( Cell[][] cells )

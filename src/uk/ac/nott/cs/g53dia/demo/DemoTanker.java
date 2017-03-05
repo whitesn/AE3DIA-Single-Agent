@@ -1,5 +1,6 @@
 package uk.ac.nott.cs.g53dia.demo;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -24,14 +25,20 @@ import uk.ac.nott.cs.g53dia.library.*;
 public class DemoTanker extends Tanker
 {
 	public final static int LOW_FUEL_THRESHOLD = (MAX_FUEL / 2) + 10;
-
+	public final static int MAP_TRAVELLABLE_BOUND = ((Tanker.MAX_FUEL - 1) / 2);
+	public final static int MAP_BOUND = MAP_TRAVELLABLE_BOUND * 2 + 1;
+	
+	public boolean isWholeMapDiscovered = false;
+	
 	Cell[][] currentCellData;
+	boolean[][] cellDiscovered = new boolean[MAP_BOUND][MAP_BOUND];
 	long currentTimeStep;
 	Task activeTask;
 	Position activeTaskPosition;
 	HashMap<Well, Position> wellList;
 	HashMap<Position, Station> stationList;
 	HashMap<Task, Position> tasks;
+	ArrayList<Action> actionQueue;
 	Position playerPos;
 
     public DemoTanker()
@@ -39,8 +46,17 @@ public class DemoTanker extends Tanker
 		wellList = new HashMap<Well,Position>();
 		stationList = new HashMap<Position,Station>();
 		tasks = new HashMap<Task,Position>();
+		actionQueue = new ArrayList<Action>();
 		activeTask = null;
 		playerPos = new Position( 0, 0 );
+		
+		for( int i = 0; i < MAP_TRAVELLABLE_BOUND; i++ )
+		{
+			for( int j = 0; j < MAP_TRAVELLABLE_BOUND; j++ )
+			{
+				cellDiscovered[i][j] = false;
+			}
+		}
 	}
 
 	/*
@@ -54,10 +70,12 @@ public class DemoTanker extends Tanker
 
 		for( int row = 0; row < rows.length; row++ )
 		{
-			for( int col = 0; col < rows[row].length; col++ )
+			for( int col = 0; col < rows.length; col++ )
 			{
 				Cell cell = rows[col][row];
 				Position pos = DemoTankerHelper.getPositionFromView( row, col, playerPos );
+				Position discoveredCell = DemoTankerHelper.convertToUnsignedPos( pos );
+				cellDiscovered[discoveredCell.x][discoveredCell.y] = true;
 
 				switch( DemoTankerHelper.getCellType(cell) )
 				{
@@ -92,8 +110,13 @@ public class DemoTanker extends Tanker
 				}
 			}
 		}
+		
+		if( !isWholeMapDiscovered )
+		{
+			isWholeMapDiscovered = DemoTankerHelper.isWholeMapDiscovered(cellDiscovered);
+		}
 	}
-
+	
 	/*
 	 * Fuel v1.0
 	 *
@@ -126,9 +149,29 @@ public class DemoTanker extends Tanker
 	 */
 	private Action recon()
 	{
-		int direction = (int)(Math.random()*8);
+		Action a = null;
+		int direction;
+		
+		if( !isWholeMapDiscovered )
+		{
+			direction = DemoTankerHelper.getDirectionMostAreaDiscovered(cellDiscovered, playerPos);
+			if( direction == -1 )
+			{
+				System.out.println("Failed to find undiscovered part of map direction");
+				DemoTankerHelper.printCellDiscovered(cellDiscovered, playerPos);
+				DemoTankerHelper.halt();
+			}
+			a = new MoveAction( direction );
+		}
+		else
+		{
+			direction = (int) (Math.random() * 8);
+			a = new MoveAction( direction );
+		}
+		
 		DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
-		return new MoveAction( direction );
+		
+		return a;
 	}
 
 	/*
@@ -145,7 +188,7 @@ public class DemoTanker extends Tanker
 			if( getWaterLevel() != MAX_WATER )
 			{
 				Well nearestWell = DemoTankerHelper.getNearestWell( playerPos, wellList );
-
+				
 				if( nearestWell != null )
 				{
 					Position wellPoint = wellList.get( nearestWell );
@@ -169,7 +212,6 @@ public class DemoTanker extends Tanker
 				}
 				else
 				{
-
 					a = getMoveActionToPos( activeTaskPosition );
 				}
 			}
@@ -227,7 +269,7 @@ public class DemoTanker extends Tanker
 		verifyPlayerPos();
 		scanSurroundings();
 		updateActiveTask();
-
+		
 		act = ( act == null ) ? fuel() : act;
 		act = ( act == null ) ? task() : act;
 		act = ( act == null ) ? recon() : act;
