@@ -1,9 +1,9 @@
 package uk.ac.nott.cs.g53dia.demo;
 
 import uk.ac.nott.cs.g53dia.library.*;
+import uk.ac.nott.cs.g53dia.demo.Plan.PlanType;
 import uk.ac.nott.cs.g53dia.demo.Position;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -274,9 +274,9 @@ public class DemoTankerHelper
     	return true;
     }
     
-	public static boolean noWaterDeliveryPlan( ArrayList<Plan> plans )
+	public static boolean noWaterDeliveryPlan( ArrayList<PlanSequence> plansQueue )
 	{
-		for( Plan p : plans )
+		for( PlanSequence p : plansQueue )
 		{
 			if( p.getPlanType() == Plan.PlanType.DeliverWater )
 			{
@@ -287,28 +287,35 @@ public class DemoTankerHelper
 		return true;
 	}
 	
-	public static void insertDeliveryPlan( ArrayList<Plan> deliveryPlanSet, ArrayList<Plan> plans )
+	public static void insertDeliveryPlan( PlanSequence newDeliveryPlan, ArrayList<PlanSequence> plans )
 	{
 		if( plans.isEmpty() )
 		{
-			plans.addAll( deliveryPlanSet );
+			plans.add( newDeliveryPlan );
 		}
 		else
 		{
 			for( int i = 0; i < plans.size(); i++ )
 			{
-				Plan plan = plans.get(i);
-				if( !(plan.getPlanType() == Plan.PlanType.Refuel) )
+				PlanSequence planSeq = plans.get(i);
+				if( !(planSeq.getPlanType() == PlanType.Refuel) )
 				{
-					plans.addAll(i, deliveryPlanSet);
+					plans.add(i, newDeliveryPlan);
 					break;
 				} 
 				else if( i == plans.size() - 1 )
 				{
-					plans.addAll( deliveryPlanSet );
+					plans.add( newDeliveryPlan );
+					break;
 				}
 			}
 		}
+	}
+	
+	public static boolean isPlanDoable( Position playerPos, Plan newPlan, ArrayList<Plan> planQueue )
+	{
+		
+		return true;
 	}
     
     /*
@@ -426,12 +433,13 @@ public class DemoTankerHelper
 		}
 	}
 	
-	public static void printPlans( ArrayList<Plan> plans )
+	public static void printPlans( ArrayList<PlanSequence> plansQueue )
 	{
 		System.out.print("Plans: ");
-		for( Plan plan : plans )
+		for( PlanSequence planSeq : plansQueue )
 		{
-			System.out.print( plan.toString() + " || " );
+			planSeq.printPlans();
+			System.out.println();
 		}
 		System.out.println();
 	}

@@ -6,6 +6,7 @@ import java.util.Iterator;
 import java.util.Map.Entry;
 
 import uk.ac.nott.cs.g53dia.demo.DemoTankerHelper;
+import uk.ac.nott.cs.g53dia.demo.Plan.PlanType;
 import uk.ac.nott.cs.g53dia.demo.Position;
 import uk.ac.nott.cs.g53dia.library.*;
 
@@ -34,7 +35,7 @@ public class DemoTanker extends Tanker
 	HashMap<Well, Position> wellList;
 	HashMap<Position, Station> stationList;
 	HashMap<Task, Position> tasks;
-	ArrayList<Plan> plans;
+	ArrayList<PlanSequence> plansQueue;
 	Position playerPos;
 	boolean isWholeMapDiscovered = false;
 
@@ -43,7 +44,7 @@ public class DemoTanker extends Tanker
 		wellList = new HashMap<Well,Position>();
 		stationList = new HashMap<Position,Station>();
 		tasks = new HashMap<Task,Position>();
-		plans = new ArrayList<Plan>();
+		plansQueue = new ArrayList<PlanSequence>();
 		playerPos = new Position( 0, 0 );
 		
 		for( int i = 0; i < MAP_TRAVELLABLE_BOUND; i++ )
@@ -114,34 +115,34 @@ public class DemoTanker extends Tanker
 	}
 	
 	/*
-	 * Fuel v1.0
-	 *
 	 * If Fuel Level is reaching the bottom threshold, forget all tasks and go directly
 	 * to Fuel Station to refuel.
 	 */
 	private void fuel()
 	{
-		if( plans.isEmpty() || plans.get(0).getPlanType() != Plan.PlanType.Refuel )
+		if( plansQueue.isEmpty() || plansQueue.get(0).getPlanType() != PlanType.Refuel )
 		{
 			int distance = DemoTankerHelper.calculateDistance( playerPos, FUEL_STATION_POS );
 			
 			if( getFuelLevel() - distance <= 1 )
 			{
 				System.out.println(">>>>>>>>> ADD FUEL PLAN");
-				Plan plan = new Plan( Plan.PlanType.Refuel, FUEL_STATION_POS, null );
-				plans.add( 0, plan );
+				
+				ArrayList<Plan> newPlans = new ArrayList<Plan>();
+				newPlans.add( new Plan(PlanType.Refuel, FUEL_STATION_POS) );
+				
+				PlanSequence planSeq = new PlanSequence( newPlans, PlanType.Refuel );
+				plansQueue.add( 0, planSeq );
 			}
 		}
 	}
 
 	/*
-	 * Recon Action v1.0
-	 *
 	 * When no activities are to be done, do recon randomly.
 	 */
 	private void recon()
 	{
-		if( plans.isEmpty() )
+		if( plansQueue.isEmpty() )
 		{
 			int direction;
 			if( !isWholeMapDiscovered )
@@ -161,17 +162,24 @@ public class DemoTanker extends Tanker
 			
 			Position newPos = playerPos.clone();
 			DemoTankerHelper.playerMoveUpdatePosition(newPos, direction);
-			Plan plan = new Plan( Plan.PlanType.Recon, newPos, null );
-			plans.add( plan );
+			
+			ArrayList<Plan> planSeq = new ArrayList<Plan>();
+			planSeq.add( new Plan(PlanType.Recon, newPos) );
+
+			System.out.println(">>>>>>>>> ADD RECON PLAN");
+			PlanSequence newPlans = new PlanSequence( planSeq, PlanType.Recon );
+			plansQueue.add( newPlans );
 		}
 	}
 
+	/*
+	 * Add Task to Plan Queue if no Water Delivery Plan in Plan Queue
+	 */
 	private void task()
 	{
-		if( DemoTankerHelper.noWaterDeliveryPlan(plans) )
+		if( DemoTankerHelper.noWaterDeliveryPlan(plansQueue) )
 		{
 			ArrayList<Plan> deliveryPlanSet = new ArrayList<Plan>();
-
 			Iterator<Entry<Task, Position>> iter = tasks.entrySet().iterator();
 			
 			while( iter.hasNext() )
@@ -185,6 +193,7 @@ public class DemoTanker extends Tanker
 				/*
 				 *  Several Scenarios:
 				 *  - DeliverWater
+				 *  - Refuel, DeliverWater
 				 *  - LoadWater, DeliverWater
 				 *  - Refuel, LoadWater, DeliverWater
 				 *  - Refuel, LoadWater, Refuel, DeliverWater (should this even be done?)
@@ -200,7 +209,7 @@ public class DemoTanker extends Tanker
 						
 						if( getFuelLevel() - (playerToStation + stationToFuelS) >= 1 )
 						{
-							deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater, taskPos, task) );
+							deliveryPlanSet.add( new DeliveryPlan(PlanType.DeliverWater, taskPos, task) );
 							break;
 						}
 					}
@@ -218,8 +227,8 @@ public class DemoTanker extends Tanker
 							System.out.println("Well To Station: " + wellToStation);
 							System.out.println("Station To Fuel: " + stationToFuelS);
 							
-							deliveryPlanSet.add( new Plan(Plan.PlanType.LoadWater,wellPos,null) );
-							deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater,taskPos,task) );
+							deliveryPlanSet.add( new Plan(PlanType.LoadWater,wellPos) );
+							deliveryPlanSet.add( new DeliveryPlan(PlanType.DeliverWater,taskPos,task) );
 							break;
 						}
 						else if( Tanker.MAX_FUEL - (FuelSToWell + wellToStation + stationToFuelS) >= 1 )
@@ -229,20 +238,37 @@ public class DemoTanker extends Tanker
 							System.out.println("Well To Station: " + wellToStation);
 							System.out.println("Station To Fuel: " + stationToFuelS);
 
-							deliveryPlanSet.add( new Plan(Plan.PlanType.Refuel,DemoTanker.FUEL_STATION_POS,null) );
-							deliveryPlanSet.add( new Plan(Plan.PlanType.LoadWater,wellPos,null) );
-							deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater,taskPos,task) );
+							deliveryPlanSet.add( new Plan(PlanType.Refuel,DemoTanker.FUEL_STATION_POS) );
+							deliveryPlanSet.add( new Plan(PlanType.LoadWater,wellPos) );
+							deliveryPlanSet.add( new DeliveryPlan(PlanType.DeliverWater,taskPos,task) );
 							break;
 						}
 					}
 				}
 				else
-				{
+				{ 
 					iter.remove();
 				}
 			}
-
-			DemoTankerHelper.insertDeliveryPlan( deliveryPlanSet, plans );
+			
+			if( !deliveryPlanSet.isEmpty() )
+			{
+				PlanSequence newPlans = new PlanSequence(deliveryPlanSet, PlanType.DeliverWater);
+				DemoTankerHelper.insertDeliveryPlan( newPlans, plansQueue );
+			}
+		}
+	}
+	
+	public void deliberateRefill()
+	{
+		if( getWaterLevel() != Tanker.MAX_WATER )
+		{
+			
+		}
+		
+		if( getFuelLevel() != Tanker.MAX_FUEL )
+		{
+			
 		}
 	}
 
@@ -251,23 +277,29 @@ public class DemoTanker extends Tanker
 		currentCellData = view;
 		currentTimeStep = timestep;
 
+		// Debug Purpose: Check if Position (generated) is Equal to Point (default)
 		verifyPlayerPos();
 		
+		// -- Update Surroundings Data --
 		scanSurroundings();
+		
+		// -- Update the Plans Queue --
 		task();
 		fuel();
 		recon();
+		// ----------------------------
 
 		debug();
 		
 		Action act = null;
-		if( plans.size() > 0 )
+		
+		if( plansQueue.size() > 0 )
 		{
-			Plan plan = plans.get(0);
-			act = plan.runPlan(playerPos);
-			if( plan.isTaskDone() )
+			PlanSequence planSeq = plansQueue.get(0);
+			act = planSeq.runPlan(playerPos);
+			if( planSeq.isTaskDone() )
 			{
-				plans.remove( plan );
+				plansQueue.remove( planSeq );
 			}
 		}
 		else
@@ -310,8 +342,8 @@ public class DemoTanker extends Tanker
 		System.out.println("Task Waiting: \t\t" + tasks.size());
 		System.out.println("Whole Map Discovered: \t" + isWholeMapDiscovered);
 		System.out.println("Fuel Level: \t\t" + getFuelLevel());
-		System.out.println("Plans in Queue: \t" + plans.size());
+		System.out.println("Plans in Queue: \t" + plansQueue.size());
 		System.out.println("Distance to FS: \t" + DemoTankerHelper.calculateDistance(playerPos, FUEL_STATION_POS));
-		DemoTankerHelper.printPlans( plans );
+		DemoTankerHelper.printPlans( plansQueue );
 	}
 }

@@ -10,21 +10,19 @@ public class Plan {
         Refuel,
         Recon
     }
-	 
+	
 	PlanType planType;
 	Position planLocation;
-	Task deliveryTask;
 	boolean isTaskDone;
 	
-	public Plan( PlanType pt, Position planLocation, Task deliveryTask )
+	public Plan( PlanType pt, Position planLocation )
 	{
 		this.planType = pt;
 		this.planLocation = planLocation;
-		this.deliveryTask = deliveryTask;
 		this.isTaskDone = false;
 	}
 	
-	private boolean isPlayerArrived( Position playerPos )
+	protected boolean isPlayerArrived( Position playerPos )
 	{
 		return this.planLocation.isEqualCoord( playerPos );
 	}
@@ -47,9 +45,6 @@ public class Plan {
 			
 			switch( planType )
 			{
-			case DeliverWater:
-				return new DeliverWaterAction( deliveryTask );
-				
 			case LoadWater:
 				return new LoadWaterAction();
 				
@@ -76,6 +71,6 @@ public class Plan {
 	
 	public String toString()
 	{
-		return "[" + planType + "]," + planLocation.toString();
+		return "[[" + planType + "]," + planLocation.toString() + "]";
 	}
 }

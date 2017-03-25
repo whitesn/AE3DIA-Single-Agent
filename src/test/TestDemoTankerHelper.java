@@ -7,6 +7,7 @@ import java.util.ArrayList;
 import org.junit.Test;
 
 import uk.ac.nott.cs.g53dia.demo.*;
+import uk.ac.nott.cs.g53dia.demo.Plan.PlanType;
 import uk.ac.nott.cs.g53dia.library.*;
 
 public class TestDemoTankerHelper {
@@ -159,30 +160,42 @@ public class TestDemoTankerHelper {
 	@Test
 	public void testNoWaterDeliveryPlan()
 	{
-		 ArrayList<Plan> plans = new ArrayList<Plan>();
-		 plans.add( new Plan(Plan.PlanType.Recon, new Position(0,0), null) );
-		 plans.add( new Plan(Plan.PlanType.LoadWater, new Position(0,0), null) );
-		 plans.add( new Plan(Plan.PlanType.Refuel, new Position(0,0), null) );
+		 ArrayList<PlanSequence> plansQueue = new ArrayList<PlanSequence>();
 		 
-		 assertTrue( DemoTankerHelper.noWaterDeliveryPlan(plans) );
+		 ArrayList<Plan> planSeq = new ArrayList<Plan>();
+		 planSeq.add( new Plan(PlanType.Recon, new Position(0,0)) );
+		 planSeq.add( new Plan(PlanType.LoadWater, new Position(0,0)) );
+		 planSeq.add( new Plan(PlanType.Refuel, new Position(0,0)) );
+		 PlanSequence newPlans = new PlanSequence(planSeq, PlanType.Refuel);
+		 plansQueue.add( newPlans );
+		 
+		 assertTrue( DemoTankerHelper.noWaterDeliveryPlan(plansQueue) );
 
-		 plans.add( new Plan(Plan.PlanType.DeliverWater, new Position(0,0), null) );
-		 assertFalse( DemoTankerHelper.noWaterDeliveryPlan(plans) );
+		 planSeq = new ArrayList<Plan>();
+		 planSeq.add( new Plan(PlanType.DeliverWater, new Position(0,0)) );
+		 newPlans = new PlanSequence(planSeq, PlanType.DeliverWater);
+		 plansQueue.add( newPlans );
+		 
+		 assertFalse( DemoTankerHelper.noWaterDeliveryPlan(plansQueue) );
 	}
 	
 	@Test
 	public void testInsertDeliveryPlan()
 	{
-		ArrayList<Plan> plans = new ArrayList<Plan>();
+		ArrayList<PlanSequence> plansQueue = new ArrayList<PlanSequence>();
+	
 		ArrayList<Plan> deliveryPlanSet = new ArrayList<Plan>();
+		deliveryPlanSet.add( new Plan(PlanType.Refuel, DemoTanker.FUEL_STATION_POS) );
+		deliveryPlanSet.add( new Plan(PlanType.LoadWater, new Position(0,0)) );
+		deliveryPlanSet.add( new Plan(PlanType.DeliverWater, new Position(0,0)) );
+		PlanSequence newDeliveryPlan = new PlanSequence(deliveryPlanSet, PlanType.DeliverWater);
+		DemoTankerHelper.insertDeliveryPlan(newDeliveryPlan, plansQueue);
+		assertEquals( 1, plansQueue.size() );
+	}
+	
+	@Test
+	public void testCalculatePlanValue()
+	{
 		
-		DemoTankerHelper.insertDeliveryPlan(deliveryPlanSet, plans);
-		assertTrue( plans.isEmpty() );
-		
-		deliveryPlanSet.add( new Plan(Plan.PlanType.Refuel, DemoTanker.FUEL_STATION_POS, null) );
-		deliveryPlanSet.add( new Plan(Plan.PlanType.LoadWater, new Position(0,0), null) );
-		deliveryPlanSet.add( new Plan(Plan.PlanType.DeliverWater, new Position(0,0), null) );
-		DemoTankerHelper.insertDeliveryPlan(deliveryPlanSet, plans);
-		assertEquals( 3, plans.size() );
 	}
 }
