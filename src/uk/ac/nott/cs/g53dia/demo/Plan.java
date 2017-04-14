@@ -8,23 +8,19 @@ public class Plan {
         DeliverWater,
         LoadWater,
         Refuel,
-        Recon
+        Recon,
+        Idle
     }
-	
-	PlanType planType;
-	Position planLocation;
-	boolean isTaskDone;
+	 
+	protected Position planLocation;
+	protected boolean isTaskDone;
+	protected PlanType planType;
 	
 	public Plan( PlanType pt, Position planLocation )
 	{
 		this.planType = pt;
 		this.planLocation = planLocation;
 		this.isTaskDone = false;
-	}
-	
-	protected boolean isPlayerArrived( Position playerPos )
-	{
-		return this.planLocation.isEqualCoord( playerPos );
 	}
 	
 	public boolean isTaskDone()
@@ -35,6 +31,16 @@ public class Plan {
 	public PlanType getPlanType()
 	{
 		return planType;
+	}
+	
+	public Position getPlanPosition()
+	{
+		return planLocation;
+	}
+	
+	protected boolean isPlayerArrived( Position playerPos )
+	{
+		return this.planLocation.isEqualCoord( playerPos );
 	}
 	
 	public Action runPlan( Position playerPos )
@@ -57,8 +63,8 @@ public class Plan {
 		}
 		else
 		{
-			int direction = DemoTankerHelper.getDirectionToward(playerPos, planLocation);
-			DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
+			int direction = Helper.getDirectionToward(playerPos, planLocation);
+			Helper.playerMoveUpdatePosition( playerPos, direction );
 			if( planType == PlanType.Recon )
 			{
 				isTaskDone = isPlayerArrived( playerPos );

@@ -23,8 +23,8 @@ public class DeliveryPlan extends Plan {
 		}
 		else
 		{
-			int direction = DemoTankerHelper.getDirectionToward(playerPos, planLocation);
-			DemoTankerHelper.playerMoveUpdatePosition( playerPos, direction );
+			int direction = Helper.getDirectionToward(playerPos, planLocation);
+			Helper.playerMoveUpdatePosition( playerPos, direction );
 			if( planType == PlanType.Recon )
 			{
 				isTaskDone = isPlayerArrived( playerPos );
@@ -32,4 +32,6 @@ public class DeliveryPlan extends Plan {
 			return new MoveAction( direction );
 		}
 	}
+	
+	
 }
